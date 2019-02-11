@@ -1,7 +1,7 @@
 {
     "_-x-vim-formatting": " vim: set ft=javascript ts=4 sw=4 et : ",
 
-    "name":        "rusffer/resque-1",
+    "name":        "rusffer/php-resque-ns",
     "description": "Namespaced port of chrisbolton/php-resque, supports Predis, more DI",
     "license":     "MIT",
 
