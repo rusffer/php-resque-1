@@ -335,12 +335,14 @@ class Resque implements LoggerAwareInterface
     public function getWorkerPids()
     {
         $command = $this->options['pgrep'] . ' ' . escapeshellarg($this->options['pgrep_pattern']);
+        echo "Command: $command\n";
 
         $pids = array();
         $output = null;
         $return = null;
 
         exec($command, $output, $return);
+        var_dump($output);
 
         /*
          * Exit codes:

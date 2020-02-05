@@ -292,6 +292,7 @@ class Worker implements LoggerAwareInterface
                     $this->updateProcLine('Waiting for ' . implode(',', $this->queues));
                 }
 
+                $this->logger->info('Waiting for ' . implode(',', $this->queues), ['worker.queues' => $this->queues]);
                 usleep($interval * 1000000);
                 continue;
             }
@@ -299,18 +300,19 @@ class Worker implements LoggerAwareInterface
             $this->logger->info('got {job}', array('job' => $job));
             $this->workingOn($job);
 
-            $this->child = null;
             $this->child = $this->fork();
 
-            // Forked and we're the child. Run the job.
-            if (!$this->child) {
+            if ($this->child === 0 || $this->child === false) {
                 $status = 'Processing ' . $job->getQueue() . ' since ' . strftime('%F %T');
                 $this->updateProcLine($status);
                 $this->logger->notice($status);
                 $this->perform($job);
-
-                exit(0);
-            } elseif ($this->child > 0) {
+                if ($this->child === 0) {
+                    exit(0);
+                    //posix_kill(getmypid(),9);
+                }
+            }
+            if ($this->child > 0) {
                 // Parent process, sit and wait
                 $status = 'Forked ' . $this->child . ' at ' . strftime('%F %T');
                 $this->updateProcLine($status);
@@ -329,6 +331,7 @@ class Worker implements LoggerAwareInterface
                 }
             }
 
+            $this->child = null;
             $this->doneWorking();
         }
     }
@@ -341,7 +344,9 @@ class Worker implements LoggerAwareInterface
     public function perform(JobInterface $job)
     {
         try {
+            $job->setUp();
             $job->perform();
+            $job->tearDown();
         } catch (Exception $e) {
             $this->logger->notice('{job} failed: {exception}', array(
                 'job'     => $job,
@@ -350,6 +355,7 @@ class Worker implements LoggerAwareInterface
             $this->failJob($job, $e);
             return;
         }
+        echo "Job performed, trying to update status.\n";
 
         try {
             $this->resque->getStatusFactory()->forJob($job)->update(Status::STATUS_COMPLETE);
@@ -364,7 +370,6 @@ class Worker implements LoggerAwareInterface
             'class' => get_class($job),
             'id'    => isset($payload['id']) ? $payload['id'] : 'unknown'
         ));
-
         $this->logger->debug('Done with {job}', array('job' => $job));
     }
 
@@ -488,18 +493,20 @@ class Worker implements LoggerAwareInterface
     private function fork()
     {
         if (!function_exists('pcntl_fork')) {
-            throw new \Exception('pcntl not available, could not fork');
+            throw new \Exception('pechoecho  cntl not available, could not fork');
         }
 
         // Immediately before a fork, disconnect the redis client
-        $this->resque->disconnect();
+        //$this->resque->disconnect();
 
         $this->logger->notice('Forking...');
 
         $pid = (int)pcntl_fork();
 
+        //echo "Forked ...\n";
         // And reconnect
-        $this->resque->connect();
+        //$this->resque->connect();
+        //echo "Redis connected ...\n";
 
         if ($pid === -1) {
             throw new RuntimeException('Unable to fork child worker.');
@@ -525,10 +532,11 @@ class Worker implements LoggerAwareInterface
      *
      * @param string $status The updated process title.
      */
-    protected function updateProcLine($status)
-    {
+    protected function updateProcLine($status) {
         if (function_exists('setproctitle')) {
-            setproctitle('resque-' . Version::VERSION . ': ' . $status);
+            $version = getenv('VERSION');
+            //TODO: add studentapan version here
+            setproctitle("resque $version: " .  ' ' . $status);
         }
     }
 
@@ -540,15 +548,15 @@ class Worker implements LoggerAwareInterface
      * QUIT: Shutdown after the current job finishes processing.
      * USR1: Kill the forked child immediately and continue processing jobs.
      */
-    protected function registerSigHandlers()
-    {
+    protected function registerSigHandlers() {
         if (!function_exists('pcntl_signal')) {
             $this->logger->warning('Cannot register signal handlers');
             return;
         }
 
-        pcntl_signal(SIGTERM, array($this, 'shutDownNow'));
-        pcntl_signal(SIGINT, array($this, 'shutDownNow'));
+        //pcntl_async_signals(true);
+        pcntl_signal(SIGTERM, array($this, 'shutdownNow'));
+        pcntl_signal(SIGINT, array($this, 'shutdownNow'));
         pcntl_signal(SIGQUIT, array($this, 'shutdown'));
         pcntl_signal(SIGUSR1, array($this, 'killChild'));
         pcntl_signal(SIGUSR2, array($this, 'pauseProcessing'));
@@ -563,6 +571,7 @@ class Worker implements LoggerAwareInterface
      */
     public function pauseProcessing()
     {
+        echo "pauseProcessing...\n";
         $this->logger->notice('USR2 received; pausing job processing');
         $this->paused = true;
     }
@@ -573,6 +582,7 @@ class Worker implements LoggerAwareInterface
      */
     public function unPauseProcessing()
     {
+        echo "unpauseProcessing...\n";
         $this->logger->notice('CONT received; resuming job processing');
         $this->paused = false;
     }
@@ -583,6 +593,7 @@ class Worker implements LoggerAwareInterface
      */
     public function reestablishRedisConnection()
     {
+        echo "reestablishRedisConnection...\n";
         $this->logger->notice('SIGPIPE received; attempting to reconnect');
         $this->resque->reconnect();
     }
@@ -593,6 +604,7 @@ class Worker implements LoggerAwareInterface
      */
     public function shutdown()
     {
+        echo "shutdown...\n";
         $this->shutdown = true;
         $this->logger->notice('Exiting...');
     }
@@ -603,6 +615,7 @@ class Worker implements LoggerAwareInterface
      */
     public function shutdownNow()
     {
+        echo "shutdownNow...\n";
         $this->shutdown();
         $this->killChild();
     }

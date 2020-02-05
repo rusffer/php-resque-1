@@ -13,8 +13,7 @@ abstract class Command extends CommandComponent
     /**
      * @return ClientInterface
      */
-    public function getRedis()
-    {
+    public function getRedis() {
         return $this->getHelper('redis')->getClient();
     }
 
@@ -22,16 +21,16 @@ abstract class Command extends CommandComponent
      * @param OutputInterface $output
      * @return \Resque\Resque
      */
-    public function getResque(OutputInterface $output)
-    {
+    public function getResque(OutputInterface $output) {
         $resque = new Resque($this->getRedis());
+        $resque->setLogger(new ConsoleLogger($output));
 
+        /*
         if (($helper = $this->getHelper('logger'))) {
-            /* @var LoggerHelper $helper */
             $resque->setLogger($helper->getLogger());
         } else {
-            $resque->setLogger(new ConsoleLogger($output));
         }
+        */
 
         return $resque;
     }

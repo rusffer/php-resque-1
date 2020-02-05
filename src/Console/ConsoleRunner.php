@@ -26,9 +26,11 @@ class ConsoleRunner
         $helper = new HelperSet();
         $helper->set(new RedisHelper($client));
 
+        /*
         if ($logger) {
             $helper->set(new LoggerHelper($logger));
         }
+         */
 
         return $helper;
     }
