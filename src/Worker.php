@@ -292,7 +292,6 @@ class Worker implements LoggerAwareInterface
                     $this->updateProcLine('Waiting for ' . implode(',', $this->queues));
                 }
 
-                $this->logger->info('Waiting for ' . implode(',', $this->queues), ['worker.queues' => $this->queues]);
                 usleep($interval * 1000000);
                 continue;
             }
@@ -453,7 +452,7 @@ class Worker implements LoggerAwareInterface
         $this->refreshQueues();
 
         $this->logger->debug('Attempting to reserve job from {queues}', array(
-            'queues' => empty($this->queues) ? 'empty queue list' : implode(', ', $this->queues)
+            'worker.queues' => empty($this->queues) ? 'empty queue list' : implode(', ', $this->queues)
         ));
 
         foreach ($this->queues as $queue) {
